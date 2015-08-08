@@ -5,7 +5,7 @@ Created on Sat Aug 08 00:35:42 2015
 @author: Jamie
 """
 TITLE = 'Submission Feed'
-VERSION = '0.0.1'
+VERSION = '0.0.3'
 AUTHOR = 'Jamie E Paton'
 TEST = 0
 
@@ -135,48 +135,56 @@ def subreddit_submissions(r, subreddit):
     seen_new_topics = []
     
     wait_time = 1
+    run = 0
     while True:
 #        print Fore.RED
 #        logger.info('Displaying hot topics')
-        hot_topics = get_hot_topics(r, subreddit, seen_hot_topics, limit=20)
-        if len(hot_topics) == 0:
-            wait_time += 1
-        else:
-            wait_time = 1
-        for topic in hot_topics:
-            print_submission(topic, title_colour=Fore.MAGENTA)
+        
         
 #        print Fore.RED
 #        logger.info('Displaying new topics')
-        new_topics = get_new_topics(r, subreddit, seen_new_topics, limit=10)
+        new_topics = get_new_topics(r, subreddit, seen_new_topics, limit=100)
         if len(new_topics) == 0:
             wait_time += 1
         else:
             wait_time = 1
-        for topic in reversed(new_topics):
-            print_submission(topic, title_colour=Fore.CYAN)
-            
-        time.sleep(wait_time)
+        
+        if run != 0 :
+            for topic in reversed(new_topics):
+                time.sleep(1)
+                print_submission(topic, title_colour=Fore.CYAN)
+        
+        if run == 1:
+            print Fore.RED
+            logger.info('Loading subreddits')
 
+        hot_topics = []
+        if run == 0:
+            hot_topics.extend(get_hot_topics(r, subreddit, seen_hot_topics, limit=10))
+        else:
+            for sub in subreddit.split('+'):
+                hot_topics.extend(get_hot_topics(r, sub, seen_hot_topics, limit=10))
+            if len(hot_topics) == 0:
+                wait_time += 1
+            else:
+                wait_time = 1
+        
+        if run != 1:
+            for topic in hot_topics:
+                time.sleep(1)
+                print_submission(topic, title_colour=Fore.MAGENTA)
+                
+        if run == 1:
+            print Fore.RED
+            logger.info('Ready')
+    
+        run += 1            
+        
+        if wait_time <= 5:
+            time.sleep(wait_time)
+        else:
+            time.sleep(5)
 
-    print Fore.RED
-    logger.info('Displaying new topics')
-    submissions = praw.helpers.submission_stream(r, subreddit, limit=limit, verbosity=0)
-    while True:
-        time.sleep(1)
-        submission = submissions.next()
-        date = "{0:>78}".format(
-                datetime.datetime.fromtimestamp(
-                submission.created_utc).strftime("%I:%M:%S %p %A, %d %B %Y"))
-        title = submission.title
-        sub = submission.subreddit
-
-        print 
-        print_line(date, colour=Fore.WHITE, delay=0.01, lead=False)
-        print_line("{0:>78}".format(str(sub)),
-                       colour=Fore.YELLOW, delay=0.01, lead=False)
-        for line in textwrap.wrap(title, 77):
-            print_line(line, colour=Fore.CYAN, delay=0.01)
 
 def main(args):
     from colorama import init
@@ -198,7 +206,10 @@ def main(args):
             except IndexError:
                 subreddit = '+'.join(['physics', 'science', 'windows',
                                       'uknews', 'unitedkingdom', 'ukpolitics', 'london',
-                                      'python', 'technology', 'dota2'])
+                                      'news', 'worldnews', 'europe', 'uklaw', 'eulaw',
+                                      'python', 'technology', 'dota2', 'lifeprotips', 'gallifrey',
+                                      'programming', 
+                                      'startrek', 'todayilearned', 'iama', ])
                 #subreddit = str(raw_input("Enter subreddit:\t"))             
             title = "Reddit Comment Tracking: %s" % subreddit
             ctypes.windll.kernel32.SetConsoleTitleA(title)
