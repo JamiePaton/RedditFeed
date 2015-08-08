@@ -83,35 +83,82 @@ def print_line(line, colour=Fore.WHITE, delay=0.05, lead=True):
         print_char(char, colour, delay, lead)
     print "\b \b"
 
-def subreddit_submissions(r, subreddit):
-    print Fore.YELLOW
-    limit = 2
-    
-    hot_submissions = r.get_subreddit(subreddit).get_hot(limit=limit)
-    print Fore.RED
-    logger.info('Displaying hot topics')
-    
-
-    seen_submissions = []
-    while True:
-        time.sleep(1)
-        try:
-            submission = hot_submissions.next()
-        except StopIteration:
-            break
-        date = "{0:>78}".format(
+def print_submission(submission, title_colour=Fore.CYAN):
+    date = "{0:>78}".format(
                 datetime.datetime.fromtimestamp(
                 submission.created_utc).strftime("%I:%M:%S %p %A, %d %B %Y"))
-        sub = submission.subreddit
-        title = submission.title
+    title = submission.title
+    sub = submission.subreddit
 
-        print 
-        print_line(date, colour=Fore.WHITE, delay=0.01, lead=False)
-        print_line("{0:>78}".format(str(sub)),
-                       colour=Fore.YELLOW, delay=0.01, lead=False)
-        for line in textwrap.wrap(title, 77):
-            print_line(line, colour=Fore.MAGENTA, delay=0.01)    
+    print 
+    print_line(date, colour=Fore.WHITE, delay=0.01, lead=False)
+    print_line("{0:>78}".format(str(sub)),
+                   colour=Fore.YELLOW, delay=0.01, lead=False)
+    for line in textwrap.wrap(title, 77):
+        print_line(line, colour=title_colour, delay=0.01)
+
+def get_hot_topics(r, subreddit, seen_hot_topics, limit=10):
+    hot_submissions = r.get_subreddit(subreddit).get_hot(limit=limit)
+    new_hot_topics = []
+    while True:
+        try:
+            sub = hot_submissions.next()
+        except StopIteration:
+            break
+        if sub.id in seen_hot_topics:
+            continue
+        else:
+            new_hot_topics.append(sub)
+            seen_hot_topics.append(sub.id)
+    return new_hot_topics
+
+def get_new_topics(r, subreddit, seen_new_topics, limit=10):
+    new_submissions = r.get_subreddit(subreddit).get_new(limit=limit)
+    new_topics = []
+    while True:
+        try:
+            sub = new_submissions.next()
+        except StopIteration:
+            break
+        if sub.id in seen_new_topics:
+            continue
+        else:
+            new_topics.append(sub)
+            seen_new_topics.append(sub.id)
+    return new_topics
+
+def subreddit_submissions(r, subreddit):
+    print Fore.YELLOW
+    limit = 100
     
+    seen_hot_topics = []
+    seen_new_topics = []
+    
+    wait_time = 1
+    while True:
+#        print Fore.RED
+#        logger.info('Displaying hot topics')
+        hot_topics = get_hot_topics(r, subreddit, seen_hot_topics, limit=20)
+        if len(hot_topics) == 0:
+            wait_time += 1
+        else:
+            wait_time = 1
+        for topic in hot_topics:
+            print_submission(topic, title_colour=Fore.MAGENTA)
+        
+#        print Fore.RED
+#        logger.info('Displaying new topics')
+        new_topics = get_new_topics(r, subreddit, seen_new_topics, limit=10)
+        if len(new_topics) == 0:
+            wait_time += 1
+        else:
+            wait_time = 1
+        for topic in reversed(new_topics):
+            print_submission(topic, title_colour=Fore.CYAN)
+            
+        time.sleep(wait_time)
+
+
     print Fore.RED
     logger.info('Displaying new topics')
     submissions = praw.helpers.submission_stream(r, subreddit, limit=limit, verbosity=0)
@@ -151,7 +198,7 @@ def main(args):
             except IndexError:
                 subreddit = '+'.join(['physics', 'science', 'windows',
                                       'uknews', 'unitedkingdom', 'ukpolitics', 'london',
-                                      'python', 'technology'])
+                                      'python', 'technology', 'dota2'])
                 #subreddit = str(raw_input("Enter subreddit:\t"))             
             title = "Reddit Comment Tracking: %s" % subreddit
             ctypes.windll.kernel32.SetConsoleTitleA(title)
@@ -159,6 +206,7 @@ def main(args):
         except KeyboardInterrupt:
             ctypes.windll.kernel32.SetConsoleTitleA(TITLE)
             print Fore.YELLOW
+            break
         except HTTPError:
             logger.exception(Fore.MAGENTA+"\nERROR")
             sleep(5)
