@@ -5,7 +5,7 @@ Created on Sat Aug 08 00:35:42 2015
 @author: Jamie
 """
 TITLE = 'Submission Feed'
-VERSION = '0.0.3'
+VERSION = '0.0.5'
 AUTHOR = 'Jamie E Paton'
 TEST = 0
 
@@ -112,6 +112,21 @@ def get_hot_topics(r, subreddit, seen_hot_topics, limit=10):
             seen_hot_topics.append(sub.id)
     return new_hot_topics
 
+def get_top_topics(r, subreddit, seen_top_topics, limit=10):
+    top_submissions = r.get_subreddit(subreddit).get_top(limit=limit)
+    new_top_topics = []
+    while True:
+        try:
+            sub = top_submissions.next()
+        except StopIteration:
+            break
+        if sub.id in seen_top_topics:
+            continue
+        else:
+            new_top_topics.append(sub)
+            seen_top_topics.append(sub.id)
+    return new_top_topics
+
 def get_new_topics(r, subreddit, seen_new_topics, limit=10):
     new_submissions = r.get_subreddit(subreddit).get_new(limit=limit)
     new_topics = []
@@ -133,6 +148,7 @@ def subreddit_submissions(r, subreddit):
     
     seen_hot_topics = []
     seen_new_topics = []
+    seen_top_topics = []
     
     wait_time = 1
     run = 0
@@ -151,8 +167,9 @@ def subreddit_submissions(r, subreddit):
         
         if run != 0 :
             for topic in reversed(new_topics):
-                time.sleep(1)
-                print_submission(topic, title_colour=Fore.CYAN)
+                if topic.id not in seen_hot_topics:
+                    print_submission(topic, title_colour=Fore.CYAN)
+                    time.sleep(1)
         
         if run == 1:
             print Fore.RED
@@ -171,8 +188,24 @@ def subreddit_submissions(r, subreddit):
         
         if run != 1:
             for topic in hot_topics:
-                time.sleep(1)
                 print_submission(topic, title_colour=Fore.MAGENTA)
+                time.sleep(2)
+        
+        top_topics = []
+        if run == 0:
+            top_topics.extend(get_top_topics(r, subreddit, seen_top_topics, limit=10))
+        else:
+            for sub in subreddit.split('+'):
+                top_topics.extend(get_top_topics(r, sub, seen_top_topics, limit=10))
+            if len(top_topics) == 0:
+                wait_time += 1
+            else:
+                wait_time = 1
+        
+        if run != 1:
+            for topic in top_topics:
+                print_submission(topic, title_colour=Fore.GREEN)
+                time.sleep(2)
                 
         if run == 1:
             print Fore.RED
@@ -208,7 +241,7 @@ def main(args):
                                       'uknews', 'unitedkingdom', 'ukpolitics', 'london',
                                       'news', 'worldnews', 'europe', 'uklaw', 'eulaw',
                                       'python', 'technology', 'dota2', 'lifeprotips', 'gallifrey',
-                                      'programming', 
+                                      'programming', 'teslamotors',
                                       'startrek', 'todayilearned', 'iama', ])
                 #subreddit = str(raw_input("Enter subreddit:\t"))             
             title = "Reddit Comment Tracking: %s" % subreddit
