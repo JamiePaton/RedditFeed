@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sat Aug 08 00:35:42 2015
+Created on Sat Aug 08 14:32:46 2015
 
 @author: Jamie
 """
-TITLE = 'Submission Feed'
-VERSION = '0.0.5'
+TITLE = 'Submission Multi Feed'
+VERSION = '0.0.2'
 AUTHOR = 'Jamie E Paton'
 TEST = 0
 
@@ -20,6 +20,7 @@ import ctypes
 import datetime
 import time
 import textwrap
+import Queue
 
 def setup_logging(default_path='logs/loggingconfig.json', default_level=logging.INFO,
                   env_key='LOG_CFG'):
@@ -127,9 +128,8 @@ def get_top_topics(r, subreddit, seen_top_topics, limit=10):
             seen_top_topics.append(sub.id)
     return new_top_topics
 
-def get_new_topics(r, subreddit, seen_new_topics, limit=10):
+def get_new_topics(r, subreddit, seen_new_topics, queue, limit=10):
     new_submissions = r.get_subreddit(subreddit).get_new(limit=limit)
-    new_topics = []
     while True:
         try:
             sub = new_submissions.next()
@@ -138,110 +138,88 @@ def get_new_topics(r, subreddit, seen_new_topics, limit=10):
         if sub.id in seen_new_topics:
             continue
         else:
-            new_topics.append(sub)
+            queue.put(sub)
+            queue.task_done()
             seen_new_topics.append(sub.id)
-    return new_topics
+
+def get_submissions(r, subreddit, queue, seen, run, limit=10, ranked='top'):
+    for subred in subreddit.split('+'):
+        ctypes.windll.kernel32.SetConsoleTitleA("{} v{} {} {}Tracking {} topics in {}".format(TITLE, VERSION, AUTHOR, ' ' * 10, ranked, subred))
+        if ranked == 'top':
+            submissions = r.get_subreddit(subred).get_top(limit=limit)
+        elif ranked == 'hot':
+            submissions = r.get_subreddit(subred).get_hot(limit=limit)
+        elif ranked == 'new':
+            submissions = r.get_subreddit(subred).get_new(limit=limit)
+        else: 
+            pass
+    
+        new_seen = []
+        while True:
+            try:
+                sub = submissions.next()
+            except StopIteration:
+                break
+            new_seen.append(sub.id)
+            if sub.id in seen[subred][ranked] or run == 01:
+                pass
+            else:
+                queue.put(sub)
+                queue.task_done()
+        seen[subred][ranked] = new_seen
+    ctypes.windll.kernel32.SetConsoleTitleA("{} v{} {}".format(TITLE, VERSION, AUTHOR))
+
+
+def print_feed(top, hot, new):
+    while True:
+        while True:
+            try:
+                print_submission(top.get(timeout=0.1), title_colour=Fore.GREEN)
+                time.sleep(3)
+            except Queue.Empty:
+                break
+        try:
+            print_submission(hot.get(timeout=0.1), title_colour=Fore.MAGENTA)
+            time.sleep(2)
+            continue
+        except Queue.Empty:
+            pass
+        try:
+            print_submission(new.get(timeout=0.1), title_colour=Fore.CYAN)
+            time.sleep(1)
+            continue
+        except Queue.Empty:
+            break
+
+import pprint
 
 def subreddit_submissions(r, subreddit):
-    print Fore.YELLOW
-    limit = 100
+    top_queue = Queue.Queue()
+    hot_queue = Queue.Queue()
+    new_queue = Queue.Queue()
     
-    seen_hot_topics = []
-    seen_new_topics = []
-    seen_top_topics = []
+    ranks = ['top', 'hot', 'new']
+    seen = {}
+    for sub in subreddit.split('+'):
+        seen[sub] = {rank: [] for rank in ranks}
     
-    wait_time = 1
     run = 0
-    
-    print Fore.RED
-    logger.info('Loading subreddits')
     while True:
-        ctypes.windll.kernel32.SetConsoleTitleA("Subreddit Feed: Tracking %s" % subreddit)
+        get_submissions(r, subreddit, top_queue, seen, run, limit=10, ranked='top')
+        get_submissions(r, subreddit, hot_queue, seen, run, limit=10, ranked='hot')
+        get_submissions(r, subreddit, new_queue, seen, run, limit=100, ranked='new')
 
-        #   top topics        
-        top_topics = []
-        if run == 0:
-            #   print top ten posts over all subreddits
-            top_topics.extend(get_top_topics(r, subreddit, seen_top_topics, limit=10))
-            for topic in top_topics:
-                print_submission(topic, title_colour=Fore.GREEN)
-                time.sleep(3)
-        elif run == 1:
-            #   collect top ten posts in each subreddit
-            for sub in subreddit.split('+'):
-                top_topics.extend(get_top_topics(r, sub, seen_top_topics, limit=10))
-            if len(top_topics) == 0:
-                wait_time += 1
-            else:
-                wait_time = 1
-        else:
-            #   collect and print top ten posts in each subreddit
-            for sub in subreddit.split('+'):
-                for topic in get_top_topics(r, sub, seen_top_topics, limit=10):
-                    print_submission(topic, title_colour=Fore.GREEN)
-                    time.sleep(3)
-#                top_topics.extend(get_top_topics(r, sub, seen_top_topics, limit=10))
-            if len(top_topics) == 0:
-                wait_time += 1
-            else:
-                wait_time = 1
-#            for topic in top_topics:
-#                print_submission(topic, title_colour=Fore.GREEN)
-#                time.sleep(3)
-        
-        #   hot topics        
-        hot_topics = []
-        if run == 0:
-            #   print hot ten posts over all subreddits
-            hot_topics.extend(get_hot_topics(r, subreddit, seen_hot_topics, limit=10))
-        elif run == 1:
-            #   collect top ten posts in each subreddit
-            for sub in subreddit.split('+'):
-                hot_topics.extend(get_hot_topics(r, sub, seen_hot_topics, limit=10))
-            if len(hot_topics) == 0:
-                wait_time += 1
-            else:
-                wait_time = 1
-        else:
-            #   collect and print top ten posts in each subreddit
-            for sub in subreddit.split('+'):
-                hot_topics.extend(get_hot_topics(r, sub, seen_hot_topics, limit=10))
-            if len(hot_topics) == 0:
-                wait_time += 1
-            else:
-                wait_time = 1
-            for topic in hot_topics:
-                print_submission(topic, title_colour=Fore.MAGENTA)
-                time.sleep(2)
-
-        new_topics = get_new_topics(r, subreddit, seen_new_topics, limit=100)
-        if len(new_topics) == 0:
-            wait_time += 1
-        else:
-            wait_time = 1
-        if run != 0 :
-            for topic in reversed(new_topics):
-                if topic.id not in seen_hot_topics and topic.id not in seen_top_topics:
-                    print_submission(topic, title_colour=Fore.CYAN)
-                    time.sleep(1)
-            
-            
-    
-        run += 1            
-        
-        if wait_time <= 5:
-            ctypes.windll.kernel32.SetConsoleTitleA("Subreddit Feed: waiting")
-            time.sleep(wait_time)
-        else:
-            ctypes.windll.kernel32.SetConsoleTitleA("Subreddit Feed: waiting")
-            time.sleep(5)
+        if run >= 1:
+            print_feed(top_queue, hot_queue, new_queue)
+        run += 1
+    return None
 
 
 def main(args):
     from colorama import init
     init()
-    import consolefont
-    consolefont.main()
+#    import consolefont
+#    consolefont.main()
     r = praw.Reddit('submission stream')
     r.config.decode_html_entities = True
     r.config.log_requests = 0
@@ -273,6 +251,8 @@ def main(args):
             logger.exception(Fore.MAGENTA+"\nERROR")
             sleep(5)
             continue
+
+
     
 class Testing(unittest.TestCase):
     """
@@ -291,7 +271,7 @@ class Testing(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    setup_logging(default_level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     logger.info(''.join([TITLE, ' v', VERSION, ' ', AUTHOR]))
     sys.exit(main(sys.argv))
