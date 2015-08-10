@@ -20,6 +20,9 @@ import ctypes
 import datetime
 import time
 import textwrap
+
+from multiprocessing import Process, Queue, Event
+import multiprocessing
 import Queue
 
 def setup_logging(default_path='logs/loggingconfig.json', default_level=logging.INFO,
@@ -170,11 +173,11 @@ def get_submissions(r, subreddit, queue, seen, run, limit=10, ranked='top'):
                     _new.append(sub)
                 else:
                     queue.put(sub)
-                    queue.task_done()
+#                    queue.task_done()
         if ranked == 'new':
             for s in reversed(_new):
                 queue.put(s)
-                queue.task_done()
+#                queue.task_done()
         seen[subred][ranked] = new_seen
     ctypes.windll.kernel32.SetConsoleTitleA("{} v{} {}".format(TITLE, VERSION, AUTHOR))
 
@@ -186,41 +189,45 @@ def print_feed(top, hot, new):
                 print_submission(top.get(timeout=0.1), title_colour=Fore.GREEN)
                 time.sleep(2)
             except Queue.Empty:
-                break
+                time.sleep(1)
         try:
             print_submission(hot.get(timeout=0.1), title_colour=Fore.MAGENTA)
             time.sleep(1.5)
             continue
         except Queue.Empty:
-            pass
+            time.sleep(1)
         try:
             print_submission(new.get(timeout=0.1), title_colour=Fore.CYAN)
             time.sleep(1)
             continue
         except Queue.Empty:
             time.sleep(1)
-            break
+#            break
 
 def subreddit_submissions(r, subreddit):
-    top_queue = Queue.Queue()
-    hot_queue = Queue.Queue()
-    new_queue = Queue.Queue()
+    top_queue = multiprocessing.Queue()
+    hot_queue = multiprocessing.Queue()
+    new_queue = multiprocessing.Queue()
     
     ranks = ['top', 'hot', 'new']
     seen = {}
     for sub in subreddit.split('+'):
         seen[sub] = {rank: [] for rank in ranks}
     
+    
     run = 0
+    p = Process(target=get_submissions, args=(r, subreddit, top_queue, seen, run, 10, 'top',))
+    p.start()
     while True:
-        get_submissions(r, subreddit, top_queue, seen, run, limit=10, ranked='top')
-        get_submissions(r, subreddit, hot_queue, seen, run, limit=10, ranked='hot')
-        get_submissions(r, subreddit, new_queue, seen, run, limit=100, ranked='new')
+#        get_submissions(r, subreddit, top_queue, seen, run, limit=10, ranked='top')
+#        get_submissions(r, subreddit, hot_queue, seen, run, limit=10, ranked='hot')
+#        get_submissions(r, subreddit, new_queue, seen, run, limit=100, ranked='new')
 
         if run >= 1:
             print_feed(top_queue, hot_queue, new_queue)
         run += 1
         time.sleep(5)
+    p.join()
     return None
 
 
@@ -282,6 +289,7 @@ class Testing(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     logger.info(''.join([TITLE, ' v', VERSION, ' ', AUTHOR]))

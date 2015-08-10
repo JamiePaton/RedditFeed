@@ -5,7 +5,7 @@ Created on Sat Aug 08 14:32:46 2015
 @author: Jamie
 """
 TITLE = 'Submission Multi Feed'
-VERSION = '0.0.2'
+VERSION = '0.0.3'
 AUTHOR = 'Jamie E Paton'
 TEST = 0
 
@@ -21,6 +21,7 @@ import datetime
 import time
 import textwrap
 import Queue
+import datetime
 
 def setup_logging(default_path='logs/loggingconfig.json', default_level=logging.INFO,
                   env_key='LOG_CFG'):
@@ -213,13 +214,36 @@ def subreddit_submissions(r, subreddit):
     
     run = 0
     while True:
+        print Fore.RED
+        start_time = datetime.datetime.now()
+        logger.info("trawl started at {:%I:%M:%S %p %A, %d %B %Y}".format(datetime.datetime.now()))
         get_submissions(r, subreddit, top_queue, seen, run, limit=10, ranked='top')
         get_submissions(r, subreddit, hot_queue, seen, run, limit=10, ranked='hot')
         get_submissions(r, subreddit, new_queue, seen, run, limit=100, ranked='new')
+        end_time = datetime.datetime.now()
+        logger.info("trawl ended at {:%I:%M:%S %p %A, %d %B %Y}".format(datetime.datetime.now()))
+        logger.info("trawl time:\t{}".format(str(end_time-start_time)))
 
         if run >= 1:
             print_feed(top_queue, hot_queue, new_queue)
+        else:
+            try:
+                while True:
+                    top_queue.get(timeout=0.1)
+            except Queue.Empty:
+                pass
+            try:
+                while True:
+                    hot_queue.get(timeout=0.1)
+            except Queue.Empty:
+                pass
+            try:
+                while True:
+                    new_queue.get(timeout=0.1)
+            except Queue.Empty:
+                pass
         run += 1
+        print Fore.RED
         time.sleep(5)
     return None
 
