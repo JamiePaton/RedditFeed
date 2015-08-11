@@ -80,7 +80,8 @@ def print_char(char, colour=Fore.WHITE, delay=0.05, lead=True):
 
 
 def print_line(line, colour=Fore.WHITE, delay=0.05, lead=True):
-    char_list = list(line.replace(u"\u2018", "'").replace(u"\u2019", "'"))
+    char_list = list(line.replace(u"\u2018", "'").replace(u"\u2019",
+                     "'").replace(u"\u201c", '"').replace(u"\u201d", '"'))
     for char in char_list:
         print_char(char, colour, delay, lead)
     print "\b \b"
