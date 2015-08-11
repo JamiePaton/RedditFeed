@@ -5,7 +5,7 @@ Created on Sat Aug 08 14:32:46 2015
 @author: Jamie
 """
 TITLE = 'Submission Multi Feed'
-VERSION = '0.0.3'
+VERSION = '0.0.5'
 AUTHOR = 'Jamie E Paton'
 TEST = 0
 
@@ -145,7 +145,7 @@ def get_new_topics(r, subreddit, seen_new_topics, queue, limit=10):
 
 
 def get_submissions(r, subreddit, queue, seen, run, limit=10, ranked='top'):
-    for subred in subreddit.split('+'):
+    for subred in subreddit:
         ctypes.windll.kernel32.SetConsoleTitleA("{} v{} {} {}Tracking {} topics in {}".format(TITLE, VERSION, AUTHOR, ' ' * 10, ranked, subred))
         if ranked == 'top':
             submissions = r.get_subreddit(subred).get_top(limit=limit)
@@ -202,27 +202,44 @@ def print_feed(top, hot, new):
             time.sleep(1)
             break
 
-def subreddit_submissions(r, subreddit):
+def subreddit_submissions(r, subreddits):
     top_queue = Queue.Queue()
     hot_queue = Queue.Queue()
     new_queue = Queue.Queue()
     
     ranks = ['top', 'hot', 'new']
-    seen = {}
-    for sub in subreddit.split('+'):
-        seen[sub] = {rank: [] for rank in ranks}
+    
+    top_seen = {}    
+    for sub in subreddits['top']:
+        top_seen[sub] = {'top': []}
+        
+    hot_seen = {}    
+    for sub in subreddits['hot']:
+        hot_seen[sub] = {'top': [], 'hot': []}
+        
+    new_seen = {}
+    for sub in subreddits['new']:
+        new_seen[sub] = {'top': [], 'hot': [], 'new': []}
+    
+    
+#    seen = {}
+#    for sub in subreddits.split('+'):
+#        seen[sub] = {rank: [] for rank in ranks}
     
     run = 0
     while True:
         print Fore.RED
         start_time = datetime.datetime.now()
         logger.info("trawl started at {:%I:%M:%S %p %A, %d %B %Y}".format(datetime.datetime.now()))
-        get_submissions(r, subreddit, top_queue, seen, run, limit=10, ranked='top')
-        get_submissions(r, subreddit, hot_queue, seen, run, limit=10, ranked='hot')
-        get_submissions(r, subreddit, new_queue, seen, run, limit=100, ranked='new')
+        get_submissions(r, subreddits['top'], top_queue, top_seen, run, limit=10, ranked='top')
+        get_submissions(r, subreddits['hot'], hot_queue, hot_seen, run, limit=10, ranked='hot')
+        get_submissions(r, subreddits['new'], new_queue, new_seen, run, limit=100, ranked='new')
         end_time = datetime.datetime.now()
-        logger.info("trawl ended at {:%I:%M:%S %p %A, %d %B %Y}".format(datetime.datetime.now()))
-        logger.info("trawl time:\t{}".format(str(end_time-start_time)))
+        logger.info("trawl ended at   {:%I:%M:%S %p %A, %d %B %Y}".format(datetime.datetime.now()))
+        logger.info("trawl time:       {}".format(str(end_time-start_time).split('.')[0]))
+        logger.info("found {} top threads".format(top_queue.qsize()))
+        logger.info("found {} hot threads".format(hot_queue.qsize()))
+        logger.info("found {} new threads".format(new_queue.qsize()))
 
         if run >= 1:
             print_feed(top_queue, hot_queue, new_queue)
@@ -247,6 +264,23 @@ def subreddit_submissions(r, subreddit):
         time.sleep(5)
     return None
 
+
+def read_checklist(filename):
+    subs = {'top': [], 'hot': [], 'new': []}
+    with open(filename, 'r') as f:
+        data = f.readlines()
+    for line in data:
+        board = line.split('\t')
+        if board[0] == 'top':
+            subs['top'].append(board[-1].strip())
+        elif board[0] == 'hot':
+            subs['top'].append(board[-1].strip())
+            subs['hot'].append(board[-1].strip())
+        elif board[0] == 'new':
+            subs['top'].append(board[-1].strip())
+            subs['hot'].append(board[-1].strip())
+            subs['new'].append(board[-1].strip())
+    return subs
 
 def main(args):
     from colorama import init
@@ -275,6 +309,7 @@ def main(args):
                                       ])
                 #subreddit = str(raw_input("Enter subreddit:\t"))
 #                subreddit = 'dota2'
+            subreddit = read_checklist('checklist.txt')
             title = "Reddit Comment Tracking: %s" % subreddit
             ctypes.windll.kernel32.SetConsoleTitleA(title)
             subreddit_submissions(r, subreddit)
@@ -284,7 +319,7 @@ def main(args):
             break
         except HTTPError:
             logger.exception(Fore.MAGENTA+"\nERROR")
-            sleep(5)
+            sleep(10)
             continue
 
 
